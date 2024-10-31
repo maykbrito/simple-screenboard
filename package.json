@@ -1,0 +1,33 @@
+{
+  "name": "simple-screenboard",
+  "version": "0.0.1",
+  "description": "Simple overlay blackboard on your screen",
+  "main": "build/index.js",
+  "scripts": {
+    "start": "yarn compile && electron .",
+    "compile": "tsc && cp src/renderer/index.html build/",
+    "build": "electron-packager . --icon assets/screenboard --overwrite --out=packages"
+  },
+  "keywords": [
+    "screen",
+    "drawer",
+    "overlay",
+    "blackboard",
+    "html canvas",
+    "canvas",
+    "electron"
+  ],
+  "author": "Mayk Brito",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/maykbrito/simple-screenboard/issues"
+  },
+  "homepage": "https://github.com/maykbrito/simple-screenboard#readme",
+  "devDependencies": {
+    "@types/electron": "^1.6.10",
+    "@types/node": "^22.8.6",
+    "electron": "^33",
+    "electron-packager": "^15.2.0",
+    "typescript": "^5.6.3"
+  }
+}
