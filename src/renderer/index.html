@@ -41,7 +41,7 @@
   <canvas id="canvas"></canvas>
   <script>
     // Creating Canvas
-    const ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })
     let backgroundColor = "transparent"
 
     // Size of the canvas is the same defined in CSS
@@ -52,26 +52,46 @@
     })
 
     // Controls
-    let prevMouseX,
-      prevMouseY,
-      snapshot,
-      mouseDownPosition,
-      isDrawing = false,
-      currentTool = "line",
-      currentColor = "hsl(0, 100%, 50%)",
-      brushSize = 3,
-      lastUsedTool = currentColor,
-      selectionStart = null,
-      selectionEnd = null,
-      selectedArea = null
+    const c = {
+      prevMouseX: 0,
+      prevMouseY: 0,
+      snapshot: null,
+      mouseDownPosition: 0,
+      isDrawing: false,
+      currentTool: "line",
+      currentColor: "hsl(0, 100%, 50%)",
+      brushSize: 3,
+      lastUsedTool: this.currentColor,
+      textSize: 16,
+    }
+
+    let timeToShowBrushSize = null
+
+    const controlsHandler = {
+      set(target, property, value) {
+        target[property] = value
+
+        if (property === 'brushSize') {
+          target.textSize = value * 5
+          clearInterval(timeToShowBrushSize)
+          document.querySelector('.cursor-text').innerText = target.currentTool === 'text' ? target.textSize : value
+          timeToShowBrushSize = setInterval(() => {
+            document.querySelector('.cursor-text').innerText = ""
+          }, 1000)
+        }
+        return true
+      },
+    }
+
+    const controls = new Proxy(c, controlsHandler)
 
     const setCurrentTool = (tool) => {
-      lastUsedTool = currentTool
-      currentTool = tool
+      controls.lastUsedTool = controls.currentTool
+      controls.currentTool = tool
       customCursor()
     }
     const setCurrentColor = (color) => {
-      currentColor = color
+      controls.currentColor = color
       customCursor()
     }
     const undo = () => history.undo(restoreHistory)
@@ -79,8 +99,8 @@
     const save = () => history.save()
     const clear = () =>
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-    const increase = () => ++brushSize
-    const decrease = () => (brushSize = brushSize <= 0 ? 1 : --brushSize)
+    const increase = () => ++controls.brushSize
+    const decrease = () => (controls.brushSize = controls.brushSize <= 0 ? 1 : --controls.brushSize)
 
     // Tools
     const tools = new Map()
@@ -88,8 +108,8 @@
       ctx.strokeRect(
         e.offsetX,
         e.offsetY,
-        prevMouseX - e.offsetX,
-        prevMouseY - e.offsetY
+        controls.prevMouseX - e.offsetX,
+        controls.prevMouseY - e.offsetY
       )
     })
 
@@ -101,11 +121,11 @@
     tools.set("circle", (e) => {
       ctx.beginPath() // new path to draw the circlec
       let radius = Math.sqrt(
-        Math.pow(prevMouseX - e.offsetX, 2) +
-        Math.pow(prevMouseY - e.offsetY, 2)
+        Math.pow(controls.prevMouseX - e.offsetX, 2) +
+        Math.pow(controls.prevMouseY - e.offsetY, 2)
       )
 
-      ctx.arc(prevMouseX, prevMouseY, radius, 0, 2 * Math.PI)
+      ctx.arc(controls.prevMouseX, controls.prevMouseY, radius, 0, 2 * Math.PI)
       ctx.stroke()
     })
 
@@ -116,7 +136,7 @@
       }
 
       const line = {
-        start: mouseDownPosition,
+        start: controls.mouseDownPosition,
         end: currentPosition,
       }
 
@@ -133,7 +153,7 @@
       }
 
       const arrow = {
-        start: mouseDownPosition,
+        start: controls.mouseDownPosition,
         end: currentPosition,
       }
 
@@ -169,15 +189,15 @@
     })
 
     tools.set('text', (e) => {
-      isDrawing = false
+      controls.isDrawing = false
       resetCanvasListener()
 
       const removeExistingInput = () => {
         const existingInput = document.querySelector('input')
         if (existingInput) {
           // Draw the existing text before creating new input
-          ctx.font = `${brushSize * 5}px monospace`
-          ctx.fillStyle = currentColor
+          ctx.font = `${controls.textSize}px monospace`
+          ctx.fillStyle = controls.currentColor
           ctx.fillText(existingInput.value, parseInt(existingInput.style.left), parseInt(existingInput.style.top))
           existingInput.remove()
         }
@@ -193,18 +213,18 @@
         input.style.background = 'transparent'
         input.style.border = 'none'
         input.style.outline = 'none'
-        input.style.color = currentColor
-        input.style.font = `${brushSize * 5}px monospace`
+        input.style.color = controls.currentColor
+        input.style.font = `${controls.textSize}px monospace`
         input.style.width = '100%'
 
         input.addEventListener('keydown', (event) => {
           if (event.key === 'Escape') {
-            ctx.font = `${brushSize * 5}px monospace`
-            ctx.fillStyle = currentColor
+            ctx.font = `${controls.textSize}px monospace`
+            ctx.fillStyle = controls.currentColor
             ctx.fillText(input.value, parseInt(input.style.left), parseInt(input.style.top))
             save()
             input.remove()
-            setCurrentTool(lastUsedTool)
+            setCurrentTool(controls.lastUsedTool)
             startCanvasListener()
             canvas.removeEventListener('click', handleTextClick)
           }
@@ -219,11 +239,11 @@
     })
 
     tools.set('hand', (e) => {
-      if (!snapshot) return
+      if (!controls.snapshot) return
 
       // Calculate movement delta
-      const deltaX = e.offsetX - prevMouseX
-      const deltaY = e.offsetY - prevMouseY
+      const deltaX = e.offsetX - controls.prevMouseX
+      const deltaY = e.offsetY - controls.prevMouseY
 
       // Clear entire canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -232,10 +252,10 @@
       const tempCanvas = document.createElement('canvas')
       tempCanvas.width = canvas.width
       tempCanvas.height = canvas.height
-      const tempCtx = tempCanvas.getContext('2d')
+      const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
 
-      // Draw the snapshot with offset
-      tempCtx.putImageData(snapshot, deltaX, deltaY)
+      // Draw the controls.snapshot with offset
+      tempCtx.putImageData(controls.snapshot, deltaX, deltaY)
 
       // Draw the transformed image back to main canvas
       ctx.drawImage(tempCanvas, 0, 0)
@@ -263,36 +283,36 @@
 
     // Actions
     const startDraw = (e) => {
-      isDrawing = true
-      prevMouseX = e.offsetX
-      prevMouseY = e.offsetY
+      controls.isDrawing = true
+      controls.prevMouseX = e.offsetX
+      controls.prevMouseY = e.offsetY
       ctx.beginPath() // new path to draw
-      ctx.lineWidth = brushSize
-      ctx.strokeStyle = currentColor
+      ctx.lineWidth = controls.brushSize
+      ctx.strokeStyle = controls.currentColor
 
-      mouseDownPosition = {
+      controls.mouseDownPosition = {
         x: e.offsetX - canvas.offsetLeft,
         y: e.offsetY - canvas.offsetTop,
       }
 
-      //copy canvas data as snapshot value
-      snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      //copy canvas data as controls.snapshot value
+      controls.snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height)
       drawing(e)
     }
 
     const stopDraw = () => {
-      isDrawing = false
+      controls.isDrawing = false
       save()
     }
 
 
     const drawing = (e) => {
-      if (!isDrawing) return
+      if (!controls.isDrawing) return
 
       // add copied canvas data on to this canvas
-      ctx.putImageData(snapshot, 0, 0)
+      ctx.putImageData(controls.snapshot, 0, 0)
 
-      const draw = tools.get(currentTool)
+      const draw = tools.get(controls.currentTool)
       draw(e)
     }
 
@@ -451,44 +471,44 @@
     const customCursor = () => {
       const icons = {
         circle: `
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
   <circle xmlns="http://www.w3.org/2000/svg" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></circle>
   </svg>`,
         rectangle: `
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
   <path xmlns="http://www.w3.org/2000/svg" d="M21 3H3V21H21V3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
   </svg>
           `,
         arrow: `
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
   <path xmlns="http://www.w3.org/2000/svg" d="M12 4L12 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
   <path xmlns="http://www.w3.org/2000/svg" d="M17 8.99996L12 4L7 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
   </svg>`,
         line: `
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
   <path xmlns="http://www.w3.org/2000/svg" d="M3.41421 21.9999L22 3.41421L20.5858 2L2 20.5857L3.41421 21.9999Z" fill="currentColor"></path>
   </svg>
           `,
         brush: `
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
   <path xmlns="http://www.w3.org/2000/svg" d="M20.989 4.09943L19.4043 2.5126C18.722 1.82941 17.615 1.82909 16.9323 2.5119L8.25326 11.1928L12.3086 15.2481L20.9881 6.56988C21.6703 5.88782 21.6707 4.78199 20.989 4.09943Z" fill="currentColor"></path>
   <path xmlns="http://www.w3.org/2000/svg" d="M11.2479 16.3087L7.19272 12.2536L5.75353 13.6931L9.80842 17.748L11.2479 16.3087Z" fill="currentColor"></path>
   <path xmlns="http://www.w3.org/2000/svg" d="M8.74769 18.8085L4.69299 14.7539L3.38781 16.0593C2.4992 16.9481 2 18.1535 2 19.4104V20.75C2 21.1642 2.33579 21.5 2.75 21.5H4.09306C5.34983 21.5 6.55514 21.0008 7.44389 20.1122L8.74769 18.8085Z" fill="currentColor"></path>
   </svg>
           `,
         text: `
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
   <path xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" d="M6.58833 6.58964C6.74981 6.23078 7.10674 6 7.50025 6H8.50025C8.89376 6 9.25069 6.23078 9.41217 6.58964L13.9122 16.5896C14.1388 17.0933 13.9143 17.6853 13.4106 17.9119C12.907 18.1386 12.315 17.914 12.0883 17.4104L10.5536 13.9998H5.44691L3.91217 17.4104C3.68553 17.914 3.09352 18.1385 2.58988 17.9119C2.08624 17.6853 1.86169 17.0933 2.08833 16.5896L6.58833 6.58964ZM6.34691 11.9998H9.65358L8.00025 8.32575L6.34691 11.9998Z" fill="currentColor"></path>
   <path xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" d="M16.8948 4.24941C16.57 4.07157 16.237 3.99799 16.009 4.00004C15.4567 4.00499 15.005 3.5613 15 3.00904C14.9951 2.45677 15.4388 2.00507 15.991 2.00012C16.7652 1.99318 17.7373 2.29532 18.5008 2.93321C19.2648 2.29754 20.2349 2.00005 21 2.00008C21.5523 2.0001 22 2.44783 22 3.00012C22 3.5524 21.5522 4.0001 21 4.00008C20.5128 4.00006 19.845 4.28843 19.5 4.77238V11H20C20.5523 11 21 11.4477 21 12C21 12.5523 20.5523 13 20 13H19.5V19.2285C19.6461 19.435 19.8546 19.6134 20.1052 19.7506C20.43 19.9285 20.763 20.0021 20.991 20C21.5433 19.9951 21.995 20.4388 22 20.991C22.0049 21.5433 21.5612 21.995 21.009 21.9999C20.2348 22.0069 19.2627 21.7047 18.4992 21.0668C17.7352 21.7025 16.7651 22 16 22C15.4477 22 15 21.5522 15 20.9999C15 20.4477 15.4478 20 16 20C16.4872 20 17.155 19.7116 17.5 19.2277V13H17C16.4477 13 16 12.5523 16 12C16 11.4477 16.4477 11 17 11H17.5L17.5 4.77158C17.3539 4.5651 17.1454 4.38662 16.8948 4.24941Z" fill="currentColor"></path>
   </svg>
           `,
         hand: `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
       <path d="M6.5 12.5V7.5C6.5 6.67157 7.17157 6 8 6C8.82843 6 9.5 6.67157 9.5 7.5V12.5M9.5 12.5V5.5C9.5 4.67157 10.1716 4 11 4C11.8284 4 12.5 4.67157 12.5 5.5V12.5M12.5 12.5V6.5C12.5 5.67157 13.1716 5 14 5C14.8284 5 15.5 5.67157 15.5 6.5V12.5M15.5 12.5V9.5C15.5 8.67157 16.1716 8 17 8C17.8284 8 18.5 8.67157 18.5 9.5V14.5C18.5 17.8137 15.8137 20.5 12.5 20.5H11.5C8.18629 20.5 5.5 17.8137 5.5 14.5V12.5H9.5M15.5 12.5H12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `,
         select: `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${controls.currentColor}">
       <path d="M3 3h7v7H3V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
       <path d="M14 3h7v7h-7V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
       <path d="M14 14h7v7h-7v-7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
@@ -496,7 +516,7 @@
     </svg>
   `
       }
-      cursor.innerHTML = icons[currentTool]
+      cursor.innerHTML = icons[controls.currentTool] + `<small class="cursor-text" style="font-size: 9px;font-family: sans-serif;color: ${controls.currentColor}"></small>`
     }
     customCursor()
   </script>
