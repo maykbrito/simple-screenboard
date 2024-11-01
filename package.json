@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/maykbrito/simple-screenboard#readme",
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@types/electron": "^1.6.10",
     "@types/node": "^22.8.6",
     "electron": "^33",
