@@ -7,10 +7,12 @@ import {
 } from 'electron'
 
 let displays: Electron.Display[] = []
-const wins: Electron.BrowserWindow[] = []
+let wins: Electron.BrowserWindow[] = []
 
 function createWindow() {
-  displays.map((display, index) => {
+  wins = []
+
+  displays.map(display => {
     const options = {
       x: display.bounds.x,
       y: display.bounds.y,
@@ -39,12 +41,19 @@ function createWindow() {
   }
 }
 
-app.on('ready', () => {
-  displays = screen.getAllDisplays()
-})
-
+let isVisible = true
 function createShortcuts() {
-  globalShortcut.register('Alt+Shift+w', WindowVisibility.toggle)
+  globalShortcut.register('Alt+Shift+w', () => {
+    if (isVisible) {
+      for (const win of wins) {
+        win.destroy()
+      }
+    } else {
+      createWindow()
+    }
+
+    isVisible = !isVisible
+  })
 }
 
 // To enable transparency on Linux
@@ -58,7 +67,10 @@ if (process.platform === 'linux') {
 // Some APIs can only be used after this event occurs.
 app
   .whenReady()
-  .then(() => setTimeout(createWindow, 200))
+  .then(() => {
+    displays = screen.getAllDisplays()
+    setTimeout(createWindow, 200)
+  })
   .then(createShortcuts)
 
 // Quit when all windows are closed.
@@ -70,40 +82,7 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('activate', recreateWindow)
-
-function recreateWindow() {
-  // On macOS it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
-    setTimeout(createWindow, 200)
-  }
-}
-
-/**
- *
- *  Toggle Window Visibility
- *  in macOS we can use win.show() or win.hide() to toggle visibility.
- *
- *  in Win and Linux we can use win.minimize() or win.maximize() to toggle visibility.
- */
 const isMacOS = process.platform === 'darwin'
-
-const WindowVisibility = {
-  isVisible: true,
-
-  toggle() {
-    if (!wins.length) return
-
-    for (const win of wins) {
-      const show = isMacOS ? () => recreateWindow() : () => win.maximize()
-      const hide = isMacOS ? () => win.close() : () => win.minimize()
-
-      this.isVisible ? show() : hide()
-      this.isVisible = !this.isVisible
-    }
-  },
-}
 
 // Allows app display on top of fullscreen apps
 if (isMacOS) {
