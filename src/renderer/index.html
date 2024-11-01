@@ -52,43 +52,56 @@
     })
 
     // Controls
-    const c = {
-      prevMouseX: 0,
-      prevMouseY: 0,
-      snapshot: null,
-      mouseDownPosition: 0,
-      isDrawing: false,
-      currentTool: "line",
-      currentColor: "hsl(0, 100%, 50%)",
-      brushSize: 3,
-      brushSizeVisibleTimer: null,
-      lastUsedTool: this.currentColor,
-      textSize: 16,
+    let brushSizeVisibleTimer = null;
+
+    function getStorage(storage, prefix) {
+      const targetToLocalStorage = [
+        "currentTool",
+        "currentColor",
+        "brushSize",
+        "lastUsedTool",
+        "textSize",
+      ]
+      return new Proxy({
+        prevMouseX: 0,
+        prevMouseY: 0,
+        snapshot: null,
+        mouseDownPosition: 0,
+        isDrawing: false,
+        currentTool: "line",
+        currentColor: "hsl(0, 100%, 50%)",
+        brushSize: 3,
+        lastUsedTool: null,
+        textSize: 16,
+      }, {
+        set: (target, prop, value) => {
+          target[prop] = value;
+          if (targetToLocalStorage.includes(prop)) {
+            storage.setItem(`${prefix}.${prop}`, value);
+          }
+
+          if (prop === "brushSize") {
+            const cursorText = document.querySelector('.cursor-text')
+            if (!cursorText) return
+
+            target.textSize = value * 5
+            storage.setItem(`${prefix}.textSize`, target.textSize);
+
+            clearInterval(brushSizeVisibleTimer)
+            cursorText.innerText = target.currentTool === 'text' ? target.textSize : value
+            brushSizeVisibleTimer = setInterval(() => {
+              cursorText.innerText = ""
+              clearInterval(brushSizeVisibleTimer)
+            }, 1000)
+          }
+        },
+        get: (target, prop) => {
+          return storage.getItem(`${prefix}.${prop}`) || target[prop];
+        },
+      });
     }
 
-    const controls = new Proxy(c, {
-      set(target, property, value) {
-        target[property] = value
-
-        if (HandleControl[property]) {
-          HandleControl[property]({ target, property, value })
-        }
-
-        return true
-      },
-    })
-
-    const HandleControl = {
-      ['brushSize']: ({ target, property, value }) => {
-        target.textSize = value * 5
-        clearInterval(controls.brushSizeVisibleTimer)
-        document.querySelector('.cursor-text').innerText = target.currentTool === 'text' ? target.textSize : value
-        controls.brushSizeVisibleTimer = setInterval(() => {
-          document.querySelector('.cursor-text').innerText = ""
-          clearInterval(controls.brushSizeVisibleTimer)
-        }, 1000)
-      },
-    }
+    const controls = getStorage(localStorage, "controls");
 
     const setCurrentTool = (tool) => {
       controls.lastUsedTool = controls.currentTool
@@ -221,6 +234,8 @@
         input.style.color = controls.currentColor
         input.style.font = `${controls.textSize}px monospace`
         input.style.width = '100%'
+
+        console.log(controls.textSize)
 
         input.addEventListener('keydown', (event) => {
           if (event.key === 'Escape') {
