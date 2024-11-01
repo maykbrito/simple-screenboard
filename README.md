@@ -19,20 +19,21 @@
 ## 🎉 Install
 
 ```sh
-npm install
+yarn install
 ```
 
 ## 🔥 Usage
 
 ```sh
-npm start
+yarn start
 ```
 
 ## 🍸 Build
 
 If you want to use it as an app for your platform run
+
 ```sh
-npm run build
+yarn run build
 ```
 
 It will give to you an file ate ./packages directory
@@ -41,20 +42,22 @@ It will give to you an file ate ./packages directory
 
 While it's running in your terminal, you can do a set of commands:
 
-| Functionality         | Keyboard Shortcut        |
-| -:                    | :-                       |
-| **Toggle Window**     | Alt + Shift + w          |
-| **Undo**              | Cmd or Ctrl + z          |
-| **Redo**              | Cmd or Ctrl + y          |
-| **Clear**             | Cmd or Ctrl + backspace  |
-| **Toggle Options**    | Esc                      |
-| **Select Pencil**     | w                        |
-| **Select Eraser**     | e                        |
-| **Increase pen size** | d                        |
-| **Decrease pen size** | s                        |
-| **Select colors**     | r (red), g (green), b (blue), c (cyan), m (magenta), y (yellow), k (black)                      |
-
-You can customize `your own shortcuts` in `./src/shortcuts.js` file.
+| Functionality         | Keyboard Shortcut         |
+| -:                    | :-                        |
+| **Toggle Window**     | Alt + Shift + w           |
+| **Undo**              | Cmd or Ctrl + z           |
+| **Redo**              | Cmd or Ctrl + y           |
+| **Clear Canvas**      | Cmd or Ctrl + backspace   |
+| **Select Line**       | q (draw a line)           |
+| **Select Square**     | w (draw a square)         |
+| **Select Brush**      | e (free hand draw)        |
+| **Select Circle**     | r (draw an circle)        |
+| **Select Text**       | t (type text)             |
+| **Select Arrow**      | y (draw an arrow)         |
+| **Select Hand**       | h (move canvas around)    |
+| **Increase pen size** | =                         |
+| **Decrease pen size** | -                         |
+| **Select colors**     | a (red), s (green), d (blue), f (black), g (white) |
 
 ## 😢 Limitations
 
@@ -66,12 +69,6 @@ On Windows OS:
 * Transparent windows can not be maximized using the Windows system menu or by double clicking the title bar. The reasoning behind this can be seen on PR [#28207](https://github.com/electron/electron/pull/28207).
 
 ---
-
-## 🕵🏾‍♂️ Inspiration ...
-
-And lot of code from:
-
-* https://github.com/Leimi/drawingboard.js
 
 ## 👨🏾‍💻 Techs
 
@@ -85,7 +82,7 @@ And lot of code from:
 
 **Mayk Brito**
 
-* Website: https://maykbrito.dev
+* Website: <https://maykbrito.dev>
 * Twitter: [@maykbrito](https://twitter.com/maykbrito)
 * Github: [@maykbrito](https://github.com/maykbrito)
 * LinkedIn: [@maykbrito](https://linkedin.com/in/maykbrito)
@@ -96,9 +93,7 @@ Contributions, issues and feature requests are welcome!<br />Feel free to check 
 
 ## 🧪 Tested in
 
-- MacOS
-- Linux \[Ubuntu 20.04.4 LTS\](by [@rrogovski](https://github.com/rrogovski))
-- Windows 10/11 (by [@davidlpc1](https://github.com/davidlpc1) / [@rrogovski](https://github.com/rrogovski))
+* MacOS
 
 ## ✨ Show your support
 
@@ -108,8 +103,8 @@ Give a ⭐️ if this project helped you!
 
 ## 📝 License
 
-Copyright © 2021 [Mayk Brito](https://github.com/maykbrito).<br />
-This project is [MIT](https://github.com/maykbrito/screenboard/blob/master/LICENSE) licensed.
+Copyright © 2024 [Mayk Brito](https://github.com/maykbrito).<br />
+This project is MIT licensed.
 
 ***
 _💜_

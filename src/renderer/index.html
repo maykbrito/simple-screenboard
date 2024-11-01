@@ -1,371 +1,505 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Simple Screenboard</title>
-    <script src="./lib/mousetrap.min.js"></script>
 
-    <style>
-      *,
-      button,
-      input {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Screenboard</title>
+  <script src="./lib/mousetrap.min.js"></script>
+
+  <style>
+    *,
+    button,
+    input {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100vh;
+    }
+
+    html {
+      background-color: transparent;
+      overflow: hidden;
+    }
+
+    body {
+      background-color: rgba(255, 255, 255, 0.001);
+    }
+
+    canvas {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+  <script>
+    // Creating Canvas
+    const ctx = canvas.getContext("2d")
+    let backgroundColor = "transparent"
+
+    // Size of the canvas is the same defined in CSS
+    window.addEventListener("load", () => {
+      canvas.width = canvas.offsetWidth
+      canvas.height = canvas.offsetHeight
+      canvas.style.background = backgroundColor
+    })
+
+    // Controls
+    let prevMouseX,
+      prevMouseY,
+      snapshot,
+      mouseDownPosition,
+      isDrawing = false,
+      currentTool = "line",
+      currentColor = "hsl(0, 100%, 50%)",
+      brushSize = 3,
+      lastUsedTool = currentColor,
+      selectionStart = null,
+      selectionEnd = null,
+      selectedArea = null
+
+    const setCurrentTool = (tool) => {
+      lastUsedTool = currentTool
+      currentTool = tool
+      customCursor()
+    }
+    const setCurrentColor = (color) => {
+      currentColor = color
+      customCursor()
+    }
+    const undo = () => history.undo(restoreHistory)
+    const redo = () => history.redo(restoreHistory)
+    const save = () => history.save()
+    const clear = () =>
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    const increase = () => ++brushSize
+    const decrease = () => (brushSize = brushSize <= 0 ? 1 : --brushSize)
+
+    // Tools
+    const tools = new Map()
+    tools.set("rectangle", (e) => {
+      ctx.strokeRect(
+        e.offsetX,
+        e.offsetY,
+        prevMouseX - e.offsetX,
+        prevMouseY - e.offsetY
+      )
+    })
+
+    tools.set("brush", (e) => {
+      ctx.lineTo(e.offsetX, e.offsetY)
+      ctx.stroke()
+    })
+
+    tools.set("circle", (e) => {
+      ctx.beginPath() // new path to draw the circlec
+      let radius = Math.sqrt(
+        Math.pow(prevMouseX - e.offsetX, 2) +
+        Math.pow(prevMouseY - e.offsetY, 2)
+      )
+
+      ctx.arc(prevMouseX, prevMouseY, radius, 0, 2 * Math.PI)
+      ctx.stroke()
+    })
+
+    tools.set("line", (e) => {
+      const currentPosition = {
+        x: e.clientX - canvas.offsetLeft,
+        y: e.clientY - canvas.offsetTop,
       }
 
-      html,
-      body {
-        height: 100vh;
+      const line = {
+        start: mouseDownPosition,
+        end: currentPosition,
       }
 
-      html {
-        background-color: transparent;
-        overflow: hidden;
+      ctx.beginPath()
+      ctx.moveTo(line.start.x, line.start.y)
+      ctx.lineTo(line.end.x, line.end.y)
+      ctx.stroke()
+    })
+
+    tools.set("arrow", (e) => {
+      const currentPosition = {
+        x: e.clientX - canvas.offsetLeft,
+        y: e.clientY - canvas.offsetTop,
       }
 
-      body {
-        background-color: rgba(255, 255, 255, 0.001);
+      const arrow = {
+        start: mouseDownPosition,
+        end: currentPosition,
       }
 
-      canvas {
-        width: 100vw;
-        height: 100vh;
-      }
-    </style>
-  </head>
-  <body>
-    <canvas id="canvas"></canvas>
-    <script>
-      // Creating Canvas
-      const ctx = canvas.getContext("2d")
-      let backgroundColor = "transparent"
+      // Calcula o ângulo e comprimento da seta
+      const angle = Math.atan2(arrow.end.y - arrow.start.y, arrow.end.x - arrow.start.x);
+      const length = Math.sqrt(
+        Math.pow(arrow.end.x - arrow.start.x, 2) +
+        Math.pow(arrow.end.y - arrow.start.y, 2)
+      );
 
-      // Size of the canvas is the same defined in CSS
-      window.addEventListener("load", () => {
-        canvas.width = canvas.offsetWidth
-        canvas.height = canvas.offsetHeight
-        canvas.style.background = backgroundColor
-      })
+      // Desenha a linha principal
+      ctx.beginPath()
+      ctx.moveTo(arrow.start.x, arrow.start.y)
+      ctx.lineTo(arrow.end.x, arrow.end.y)
+      ctx.stroke()
 
-      // Tools
-      const tools = new Map()
-      tools.set("rectangle", (e) => {
-        ctx.strokeRect(
-          e.offsetX,
-          e.offsetY,
-          prevMouseX - e.offsetX,
-          prevMouseY - e.offsetY
-        )
-      })
+      // Desenha a ponta da seta
+      const headLength = Math.min(20, length / 3); // Tamanho da ponta
+      const headAngle = Math.PI / 6; // 30 graus
 
-      tools.set("brush", (e) => {
-        ctx.lineTo(e.offsetX, e.offsetY)
-        ctx.stroke()
-      })
+      ctx.beginPath()
+      ctx.moveTo(arrow.end.x, arrow.end.y)
+      ctx.lineTo(
+        arrow.end.x - headLength * Math.cos(angle - headAngle),
+        arrow.end.y - headLength * Math.sin(angle - headAngle)
+      )
+      ctx.moveTo(arrow.end.x, arrow.end.y)
+      ctx.lineTo(
+        arrow.end.x - headLength * Math.cos(angle + headAngle),
+        arrow.end.y - headLength * Math.sin(angle + headAngle)
+      )
+      ctx.stroke()
+    })
 
-      tools.set("circle", (e) => {
-        ctx.beginPath() // new path to draw the circlec
-        let radius = Math.sqrt(
-          Math.pow(prevMouseX - e.offsetX, 2) +
-            Math.pow(prevMouseY - e.offsetY, 2)
-        )
+    tools.set('text', (e) => {
+      isDrawing = false
+      resetCanvasListener()
 
-        ctx.arc(prevMouseX, prevMouseY, radius, 0, 2 * Math.PI)
-        ctx.stroke()
-      })
-
-      tools.set("eraser", (e) => {
-        ctx.strokeStyle = backgroundColor
-        ctx.lineTo(e.offsetX, e.offsetY)
-        ctx.stroke()
-      })
-
-      tools.set("line", (e) => {
-        const currentPosition = {
-          x: e.clientX - canvas.offsetLeft,
-          y: e.clientY - canvas.offsetTop,
+      const removeExistingInput = () => {
+        const existingInput = document.querySelector('input')
+        if (existingInput) {
+          // Draw the existing text before creating new input
+          ctx.font = `${brushSize * 5}px monospace`
+          ctx.fillStyle = currentColor
+          ctx.fillText(existingInput.value, parseInt(existingInput.style.left), parseInt(existingInput.style.top))
+          existingInput.remove()
         }
-
-        const line = {
-          start: mouseDownPosition,
-          end: currentPosition,
-        }
-
-        ctx.beginPath()
-        ctx.moveTo(line.start.x, line.start.y)
-        ctx.lineTo(line.end.x, line.end.y)
-        ctx.stroke()
-      })
-
-      // Controls
-      let prevMouseX,
-        prevMouseY,
-        snapshot,
-        mouseDownPosition,
-        isDrawing = false,
-        currentTool = "line",
-        currentColor = "hsl(0, 100%, 50%)",
-        brushSize = 3
-
-      const setCurrentTool = (tool) => {
-        currentTool = tool
-        customCursor()
-      }
-      const setCurrentColor = (color) => {
-        currentColor = color
-        customCursor()
-      }
-      const undo = () => history.undo(restoreHistory)
-      const redo = () => history.redo(restoreHistory)
-      const save = () => history.save()
-      const clear = () =>
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-      const increase = () => ++brushSize
-      const decrease = () => (brushSize = brushSize <= 0 ? 1 : --brushSize)
-
-      // Shortcuts
-      Mousetrap.bind("w", () => setCurrentTool("rectangle"))
-      Mousetrap.bind("r", () => setCurrentTool("circle"))
-      Mousetrap.bind("e", () => setCurrentTool("brush"))
-      Mousetrap.bind("t", () => setCurrentTool("eraser"))
-      Mousetrap.bind("q", () => setCurrentTool("line"))
-      Mousetrap.bind("a", () => setCurrentColor("hsl(0 100% 50%)"))
-      Mousetrap.bind("s", () => setCurrentColor("hsl(95 100% 50%)"))
-      Mousetrap.bind("d", () => setCurrentColor("hsl(230 100% 50%)"))
-      Mousetrap.bind("f", () => setCurrentColor("hsl(0 0% 0%)"))
-      Mousetrap.bind("g", () => setCurrentColor("white"))
-      Mousetrap.bind("mod+z", () => undo())
-      Mousetrap.bind("mod+y", () => redo())
-      Mousetrap.bind("mod+backspace", () => clear())
-      Mousetrap.bind("=", () => increase())
-      Mousetrap.bind("-", () => decrease())
-
-      // Actions
-      const startDraw = (e) => {
-        isDrawing = true
-        prevMouseX = e.offsetX
-        prevMouseY = e.offsetY
-        ctx.beginPath() // new path to draw
-        ctx.lineWidth = brushSize
-        ctx.strokeStyle = currentColor
-
-        mouseDownPosition = {
-          x: e.offsetX - canvas.offsetLeft,
-          y: e.offsetY - canvas.offsetTop,
-        }
-
-        //copy canvas data as snapshot value
-        snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        drawing(e)
       }
 
-      const stopDraw = () => {
-        isDrawing = false
-        save()
+      const handleTextClick = (e) => {
+        removeExistingInput()
+
+        const input = document.createElement('input')
+        input.style.position = 'fixed'
+        input.style.left = `${e.clientX}px`
+        input.style.top = `${e.clientY}px`
+        input.style.background = 'transparent'
+        input.style.border = 'none'
+        input.style.outline = 'none'
+        input.style.color = currentColor
+        input.style.font = `${brushSize * 5}px monospace`
+        input.style.width = '100%'
+
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            ctx.font = `${brushSize * 5}px monospace`
+            ctx.fillStyle = currentColor
+            ctx.fillText(input.value, parseInt(input.style.left), parseInt(input.style.top))
+            save()
+            input.remove()
+            setCurrentTool(lastUsedTool)
+            startCanvasListener()
+            canvas.removeEventListener('click', handleTextClick)
+          }
+        })
+
+        document.body.appendChild(input)
+        input.focus()
       }
 
-      const drawing = (e) => {
-        if (!isDrawing) return
+      canvas.addEventListener('click', handleTextClick)
+      handleTextClick(e) // Handle initial click
+    })
 
-        // add copied canvas data on to this canvas
-        ctx.putImageData(snapshot, 0, 0)
+    tools.set('hand', (e) => {
+      if (!snapshot) return
 
-        const draw = tools.get(currentTool)
-        draw(e)
+      // Calculate movement delta
+      const deltaX = e.offsetX - prevMouseX
+      const deltaY = e.offsetY - prevMouseY
+
+      // Clear entire canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      // Create temporary canvas to manipulate the image
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = canvas.width
+      tempCanvas.height = canvas.height
+      const tempCtx = tempCanvas.getContext('2d')
+
+      // Draw the snapshot with offset
+      tempCtx.putImageData(snapshot, deltaX, deltaY)
+
+      // Draw the transformed image back to main canvas
+      ctx.drawImage(tempCanvas, 0, 0)
+
+    })
+
+    // Shortcuts
+    Mousetrap.bind("q", () => setCurrentTool("line"))
+    Mousetrap.bind("w", () => setCurrentTool("rectangle"))
+    Mousetrap.bind("r", () => setCurrentTool("circle"))
+    Mousetrap.bind("e", () => setCurrentTool("brush"))
+    Mousetrap.bind("t", () => setCurrentTool("text"))
+    Mousetrap.bind("y", () => setCurrentTool("arrow"))
+    Mousetrap.bind("h", () => setCurrentTool("hand"))
+    Mousetrap.bind("a", () => setCurrentColor("hsl(0 100% 50%)"))
+    Mousetrap.bind("s", () => setCurrentColor("hsl(95 100% 50%)"))
+    Mousetrap.bind("d", () => setCurrentColor("hsl(230 100% 50%)"))
+    Mousetrap.bind("f", () => setCurrentColor("hsl(0 0% 0%)"))
+    Mousetrap.bind("g", () => setCurrentColor("white"))
+    Mousetrap.bind("mod+z", () => undo())
+    Mousetrap.bind("mod+y", () => redo())
+    Mousetrap.bind("mod+backspace", () => clear())
+    Mousetrap.bind("=", () => increase())
+    Mousetrap.bind("-", () => decrease())
+
+    // Actions
+    const startDraw = (e) => {
+      isDrawing = true
+      prevMouseX = e.offsetX
+      prevMouseY = e.offsetY
+      ctx.beginPath() // new path to draw
+      ctx.lineWidth = brushSize
+      ctx.strokeStyle = currentColor
+
+      mouseDownPosition = {
+        x: e.offsetX - canvas.offsetLeft,
+        y: e.offsetY - canvas.offsetTop,
       }
 
+      //copy canvas data as snapshot value
+      snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      drawing(e)
+    }
+
+    const stopDraw = () => {
+      isDrawing = false
+      save()
+    }
+
+
+    const drawing = (e) => {
+      if (!isDrawing) return
+
+      // add copied canvas data on to this canvas
+      ctx.putImageData(snapshot, 0, 0)
+
+      const draw = tools.get(currentTool)
+      draw(e)
+    }
+
+    const startCanvasListener = () => {
       canvas.addEventListener("mousedown", startDraw)
       canvas.addEventListener("mouseup", stopDraw)
       canvas.addEventListener("mousemove", drawing)
+    }
+    startCanvasListener()
 
-      /**
-       * SimpleUndo is a very basic javascript undo/redo stack for managing histories of basically anything.
-       *
-       * options are: {
-       * 	* `provider` : required. a function to call on `save`, which should provide the current state of the historized object through the given "done" callback
-       * 	* `maxLength` : the maximum number of items in history
-       * 	* `onUpdate` : a function to call to notify of changes in history. Will be called on `save`, `undo`, `redo` and `clear`
-       * }
-       *
-       */
+    const resetCanvasListener = () => {
+      canvas.removeEventListener("mousedown", startDraw)
+      canvas.removeEventListener("mouseup", stopDraw)
+      canvas.removeEventListener("mousemove", drawing)
+    }
 
-      class SimpleUndo {
-        constructor(options) {
-          const settings = options ? options : {}
-          const defaultOptions = {
-            provider: function () {
-              throw new Error("No provider!")
-            },
-            maxLength: 30,
-            onUpdate: function () {},
-          }
+    /**
+     * SimpleUndo is a very basic javascript undo/redo stack for managing histories of basically anything.
+     *
+     * options are: {
+     * 	* `provider` : required. a function to call on `save`, which should provide the current state of the historized object through the given "done" callback
+     * 	* `maxLength` : the maximum number of items in history
+     * 	* `onUpdate` : a function to call to notify of changes in history. Will be called on `save`, `undo`, `redo` and `clear`
+     * }
+     *
+     */
 
-          this.provider =
-            typeof settings.provider != "undefined"
-              ? settings.provider
-              : defaultOptions.provider
-          this.maxLength =
-            typeof settings.maxLength != "undefined"
-              ? settings.maxLength
-              : defaultOptions.maxLength
-          this.onUpdate =
-            typeof settings.onUpdate != "undefined"
-              ? settings.onUpdate
-              : defaultOptions.onUpdate
-
-          this.initialItem = null
-          this.clear()
+    class SimpleUndo {
+      constructor(options) {
+        const settings = options ? options : {}
+        const defaultOptions = {
+          provider: function () {
+            throw new Error("No provider!")
+          },
+          maxLength: 30,
+          onUpdate: function () { },
         }
 
-        initialize(initialItem) {
-          this.stack[0] = initialItem
-          this.initialItem = initialItem
-        }
+        this.provider =
+          typeof settings.provider != "undefined"
+            ? settings.provider
+            : defaultOptions.provider
+        this.maxLength =
+          typeof settings.maxLength != "undefined"
+            ? settings.maxLength
+            : defaultOptions.maxLength
+        this.onUpdate =
+          typeof settings.onUpdate != "undefined"
+            ? settings.onUpdate
+            : defaultOptions.onUpdate
 
-        clear() {
-          this.stack = [this.initialItem]
-          this.position = 0
-          this.onUpdate()
-        }
+        this.initialItem = null
+        this.clear()
+      }
 
-        truncate(stack, limit) {
-          while (stack.length > limit) {
-            stack.shift()
-          }
-        }
+      initialize(initialItem) {
+        this.stack[0] = initialItem
+        this.initialItem = initialItem
+      }
 
-        save() {
-          this.provider((current) => {
-            if (this.position >= this.maxLength)
-              this.truncate(this.stack, this.maxLength)
+      clear() {
+        this.stack = [this.initialItem]
+        this.position = 0
+        this.onUpdate()
+      }
 
-            this.position = Math.min(this.position, this.stack.length - 1)
-            this.stack = this.stack.slice(0, this.position + 1)
-            this.stack.push(current)
-            this.position++
-            this.onUpdate()
-          })
-        }
-
-        undo(callback) {
-          if (!this.canUndo()) return
-
-          const item = this.stack[--this.position]
-          this.onUpdate()
-
-          if (!callback) return
-          callback(item)
-        }
-
-        redo(callback) {
-          if (!this.canRedo()) return
-
-          const item = this.stack[++this.position]
-          this.onUpdate()
-
-          if (!callback) return
-          callback(item)
-        }
-
-        canUndo() {
-          return this.position > 0
-        }
-
-        canRedo() {
-          return this.position < this.count()
-        }
-
-        count() {
-          return this.stack.length - 1 // -1 because of the initial item
+      truncate(stack, limit) {
+        while (stack.length > limit) {
+          stack.shift()
         }
       }
 
-      /**
-       * Undo and redo drawed lines
-       */
-      const history = new SimpleUndo({
-        provider: (done) => done(canvas.toDataURL("image/png")),
-      })
+      save() {
+        this.provider((current) => {
+          if (this.position >= this.maxLength)
+            this.truncate(this.stack, this.maxLength)
 
-      const restoreHistory = (image) => {
-        if (!image) {
-          ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-          return
-        }
-        // criar imagem e colocar no canvas
-        const img = new Image()
-        img.onload = () => {
-          ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-          ctx.drawImage(img, 0, 0)
-        }
-
-        img.src = image
+          this.position = Math.min(this.position, this.stack.length - 1)
+          this.stack = this.stack.slice(0, this.position + 1)
+          this.stack.push(current)
+          this.position++
+          this.onUpdate()
+        })
       }
 
-      //custom cursor
-      const cursorWrapper = document.createElement("div")
-      cursorWrapper.setAttribute("style", "position: fixed; inset:0; pointer-events:none;")
+      undo(callback) {
+        if (!this.canUndo()) return
 
-      const cursor = document.createElement("div")
-      cursor.classList.add("cursor")
-      cursor.setAttribute("style", "position:absolute; will-change: transform;")
-      cursor.innerHTML = `
-      <svg width="8" height="8">
-          <circle
-            cx="4"
-            cy="4"
-            r="4"
-            fill="black"
-          />
-        </svg>`
+        const item = this.stack[--this.position]
+        this.onUpdate()
 
-      cursorWrapper.appendChild(cursor)
-      document.body.prepend(cursorWrapper)
+        if (!callback) return
+        callback(item)
+      }
 
-      const handleMouseMove = (e) => {
-        cursor.style.transform = `translate(${e.clientX + 15}px, ${e.clientY + 15}px)`;
-      };
-      window.addEventListener('mousemove', handleMouseMove);
+      redo(callback) {
+        if (!this.canRedo()) return
 
-      const customCursor = () => {
-        const icons = { 
-          circle: `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
-<circle xmlns="http://www.w3.org/2000/svg" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></circle>
-</svg>`,
+        const item = this.stack[++this.position]
+        this.onUpdate()
+
+        if (!callback) return
+        callback(item)
+      }
+
+      canUndo() {
+        return this.position > 0
+      }
+
+      canRedo() {
+        return this.position < this.count()
+      }
+
+      count() {
+        return this.stack.length - 1 // -1 because of the initial item
+      }
+    }
+
+    /**
+     * Undo and redo drawed lines
+     */
+    const history = new SimpleUndo({
+      provider: (done) => done(canvas.toDataURL("image/png")),
+    })
+
+    const restoreHistory = (image) => {
+      if (!image) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+        return
+      }
+      // criar imagem e colocar no canvas
+      const img = new Image()
+      img.onload = () => {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+        ctx.drawImage(img, 0, 0)
+      }
+
+      img.src = image
+    }
+
+    //custom cursor
+    const cursorWrapper = document.createElement("div")
+    cursorWrapper.setAttribute("style", "position: fixed; inset:0; pointer-events:none;")
+
+    const cursor = document.createElement("div")
+    cursor.classList.add("cursor")
+    cursor.setAttribute("style", "position:absolute; will-change: transform;")
+    cursorWrapper.appendChild(cursor)
+    document.body.prepend(cursorWrapper)
+
+    const handleMouseMove = (e) => {
+      cursor.style.transform = `translate(${e.clientX + 15}px, ${e.clientY + 15}px)`;
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+
+    const customCursor = () => {
+      const icons = {
+        circle: `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+  <circle xmlns="http://www.w3.org/2000/svg" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></circle>
+  </svg>`,
         rectangle: `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
-<path xmlns="http://www.w3.org/2000/svg" d="M21 3H3V21H21V3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
-</svg>
-        `,
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+  <path xmlns="http://www.w3.org/2000/svg" d="M21 3H3V21H21V3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
+  </svg>
+          `,
         arrow: `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
-<path xmlns="http://www.w3.org/2000/svg" d="M12 2.25C12.2724 2.25 12.5233 2.39767 12.6556 2.63577L22.6556 20.6358C22.7847 20.8681 22.7812 21.1513 22.6464 21.3803C22.5116 21.6094 22.2657 21.75 22 21.75H2C1.73426 21.75 1.48836 21.6094 1.3536 21.3803C1.21883 21.1513 1.21533 20.8681 1.34438 20.6358L11.3444 2.63577C11.4767 2.39767 11.7276 2.25 12 2.25Z" fill="currentColor"></path>
-</svg>`,
-        eraser: `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
-<path xmlns="http://www.w3.org/2000/svg" d="M8.73792 7.78021L4.84693 11.7574C3.67722 12.953 3.09236 13.5508 3.01263 14.2802C2.99579 14.4343 2.99579 14.5899 3.01263 14.744C3.09236 15.4733 3.67722 16.0711 4.84693 17.2668L4.99601 17.4191C5.62049 18.0575 5.93274 18.3766 6.30638 18.5911C6.5236 18.7157 6.75482 18.8134 6.99505 18.882C7.40827 19 7.85149 19 8.73792 19C9.62436 19 10.0676 19 10.4808 18.882C10.721 18.8134 10.9522 18.7157 11.1695 18.5911C11.5431 18.3766 11.8554 18.0575 12.4798 17.4191L15.3239 14.5121M8.73792 7.78021L12.3199 4.12313C13.7065 2.70754 14.3997 1.99974 15.2627 2C16.1256 2.00026 16.8185 2.70846 18.2042 4.12487L18.9473 4.8845C20.3159 6.28342 21.0002 6.98288 21 7.85008C20.9997 8.71728 20.315 9.41633 18.9456 10.8144L15.3239 14.5121M8.73792 7.78021L15.3239 14.5121" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-<path xmlns="http://www.w3.org/2000/svg" d="M10 22L21 22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-</svg>
-        `,
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+  <path xmlns="http://www.w3.org/2000/svg" d="M12 4L12 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+  <path xmlns="http://www.w3.org/2000/svg" d="M17 8.99996L12 4L7 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+  </svg>`,
         line: `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
-<path xmlns="http://www.w3.org/2000/svg" d="M3.41421 21.9999L22 3.41421L20.5858 2L2 20.5857L3.41421 21.9999Z" fill="currentColor"></path>
-</svg>
-        `,
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+  <path xmlns="http://www.w3.org/2000/svg" d="M3.41421 21.9999L22 3.41421L20.5858 2L2 20.5857L3.41421 21.9999Z" fill="currentColor"></path>
+  </svg>
+          `,
         brush: `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
-<path xmlns="http://www.w3.org/2000/svg" d="M20.989 4.09943L19.4043 2.5126C18.722 1.82941 17.615 1.82909 16.9323 2.5119L8.25326 11.1928L12.3086 15.2481L20.9881 6.56988C21.6703 5.88782 21.6707 4.78199 20.989 4.09943Z" fill="currentColor"></path>
-<path xmlns="http://www.w3.org/2000/svg" d="M11.2479 16.3087L7.19272 12.2536L5.75353 13.6931L9.80842 17.748L11.2479 16.3087Z" fill="currentColor"></path>
-<path xmlns="http://www.w3.org/2000/svg" d="M8.74769 18.8085L4.69299 14.7539L3.38781 16.0593C2.4992 16.9481 2 18.1535 2 19.4104V20.75C2 21.1642 2.33579 21.5 2.75 21.5H4.09306C5.34983 21.5 6.55514 21.0008 7.44389 20.1122L8.74769 18.8085Z" fill="currentColor"></path>
-</svg>
-        `
-        }
-        cursor.innerHTML = icons[currentTool]
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+  <path xmlns="http://www.w3.org/2000/svg" d="M20.989 4.09943L19.4043 2.5126C18.722 1.82941 17.615 1.82909 16.9323 2.5119L8.25326 11.1928L12.3086 15.2481L20.9881 6.56988C21.6703 5.88782 21.6707 4.78199 20.989 4.09943Z" fill="currentColor"></path>
+  <path xmlns="http://www.w3.org/2000/svg" d="M11.2479 16.3087L7.19272 12.2536L5.75353 13.6931L9.80842 17.748L11.2479 16.3087Z" fill="currentColor"></path>
+  <path xmlns="http://www.w3.org/2000/svg" d="M8.74769 18.8085L4.69299 14.7539L3.38781 16.0593C2.4992 16.9481 2 18.1535 2 19.4104V20.75C2 21.1642 2.33579 21.5 2.75 21.5H4.09306C5.34983 21.5 6.55514 21.0008 7.44389 20.1122L8.74769 18.8085Z" fill="currentColor"></path>
+  </svg>
+          `,
+        text: `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+  <path xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" d="M6.58833 6.58964C6.74981 6.23078 7.10674 6 7.50025 6H8.50025C8.89376 6 9.25069 6.23078 9.41217 6.58964L13.9122 16.5896C14.1388 17.0933 13.9143 17.6853 13.4106 17.9119C12.907 18.1386 12.315 17.914 12.0883 17.4104L10.5536 13.9998H5.44691L3.91217 17.4104C3.68553 17.914 3.09352 18.1385 2.58988 17.9119C2.08624 17.6853 1.86169 17.0933 2.08833 16.5896L6.58833 6.58964ZM6.34691 11.9998H9.65358L8.00025 8.32575L6.34691 11.9998Z" fill="currentColor"></path>
+  <path xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" d="M16.8948 4.24941C16.57 4.07157 16.237 3.99799 16.009 4.00004C15.4567 4.00499 15.005 3.5613 15 3.00904C14.9951 2.45677 15.4388 2.00507 15.991 2.00012C16.7652 1.99318 17.7373 2.29532 18.5008 2.93321C19.2648 2.29754 20.2349 2.00005 21 2.00008C21.5523 2.0001 22 2.44783 22 3.00012C22 3.5524 21.5522 4.0001 21 4.00008C20.5128 4.00006 19.845 4.28843 19.5 4.77238V11H20C20.5523 11 21 11.4477 21 12C21 12.5523 20.5523 13 20 13H19.5V19.2285C19.6461 19.435 19.8546 19.6134 20.1052 19.7506C20.43 19.9285 20.763 20.0021 20.991 20C21.5433 19.9951 21.995 20.4388 22 20.991C22.0049 21.5433 21.5612 21.995 21.009 21.9999C20.2348 22.0069 19.2627 21.7047 18.4992 21.0668C17.7352 21.7025 16.7651 22 16 22C15.4477 22 15 21.5522 15 20.9999C15 20.4477 15.4478 20 16 20C16.4872 20 17.155 19.7116 17.5 19.2277V13H17C16.4477 13 16 12.5523 16 12C16 11.4477 16.4477 11 17 11H17.5L17.5 4.77158C17.3539 4.5651 17.1454 4.38662 16.8948 4.24941Z" fill="currentColor"></path>
+  </svg>
+          `,
+        hand: `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+      <path d="M6.5 12.5V7.5C6.5 6.67157 7.17157 6 8 6C8.82843 6 9.5 6.67157 9.5 7.5V12.5M9.5 12.5V5.5C9.5 4.67157 10.1716 4 11 4C11.8284 4 12.5 4.67157 12.5 5.5V12.5M12.5 12.5V6.5C12.5 5.67157 13.1716 5 14 5C14.8284 5 15.5 5.67157 15.5 6.5V12.5M15.5 12.5V9.5C15.5 8.67157 16.1716 8 17 8C17.8284 8 18.5 8.67157 18.5 9.5V14.5C18.5 17.8137 15.8137 20.5 12.5 20.5H11.5C8.18629 20.5 5.5 17.8137 5.5 14.5V12.5H9.5M15.5 12.5H12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `,
+        select: `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" color="${currentColor}">
+      <path d="M3 3h7v7H3V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M14 3h7v7h-7V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M14 14h7v7h-7v-7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M3 14h7v7H3v-7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+  `
       }
-      customCursor()
-    </script>
-  </body>
+      cursor.innerHTML = icons[currentTool]
+    }
+    customCursor()
+  </script>
+</body>
+
 </html>
