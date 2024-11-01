@@ -1,34 +1,47 @@
-import { BrowserWindow, app, globalShortcut, screen } from 'electron'
+import {
+  BrowserWindow,
+  type BrowserWindowConstructorOptions,
+  app,
+  globalShortcut,
+  screen,
+} from 'electron'
 
-let win: BrowserWindow
+let displays: Electron.Display[] = []
+const wins: Electron.BrowserWindow[] = []
 
 function createWindow() {
-  const mainScreen = screen.getPrimaryDisplay()
-  const dimensions = mainScreen.size
+  displays.map((display, index) => {
+    const options = {
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      transparent: true,
+      frame: false,
+      titleBarStyle: 'customButtonsOnHover',
+      alwaysOnTop: true,
+      hasShadow: false,
+      webPreferences: {
+        nodeIntegration: true,
+      },
+    } as BrowserWindowConstructorOptions
 
-  // Create the browser window.
-  win = new BrowserWindow({
-    // Trick to be transparent on win10/11
-    width: dimensions.width - 1,
-    height: dimensions.height - 1,
-    transparent: true,
-    frame: false,
-    titleBarStyle: 'customButtonsOnHover',
-    alwaysOnTop: true,
-    hasShadow: false,
-    webPreferences: {
-      nodeIntegration: true,
-    },
+    wins.push(new BrowserWindow(options))
   })
 
-  // Allows the window stay on top of all other windows
-  win.setAlwaysOnTop(true, 'screen-saver')
-  // Keep the window on all workspaces
-  win.setVisibleOnAllWorkspaces(true)
-
-  // and load the index.html of the app.
-  win.loadFile('src/renderer/index.html')
+  for (const win of wins) {
+    // Allows the window stay on top of all other windows
+    win.setAlwaysOnTop(true, 'screen-saver')
+    // Keep the window on all workspaces
+    win.setVisibleOnAllWorkspaces(true)
+    // and load the index.html of the app.
+    win.loadFile('src/renderer/index.html')
+  }
 }
+
+app.on('ready', () => {
+  displays = screen.getAllDisplays()
+})
 
 function createShortcuts() {
   globalShortcut.register('Alt+Shift+w', WindowVisibility.toggle)
@@ -80,11 +93,15 @@ const WindowVisibility = {
   isVisible: true,
 
   toggle() {
-    const show = isMacOS ? () => recreateWindow() : () => win.maximize()
-    const hide = isMacOS ? () => win.close() : () => win.minimize()
+    if (!wins.length) return
 
-    this.isVisible ? show() : hide()
-    this.isVisible = !this.isVisible
+    for (const win of wins) {
+      const show = isMacOS ? () => recreateWindow() : () => win.maximize()
+      const hide = isMacOS ? () => win.close() : () => win.minimize()
+
+      this.isVisible ? show() : hide()
+      this.isVisible = !this.isVisible
+    }
   },
 }
 
