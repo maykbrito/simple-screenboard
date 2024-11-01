@@ -1,7 +1,6 @@
-import { app, BrowserWindow, screen, globalShortcut } from "electron"
+import { BrowserWindow, app, globalShortcut, screen } from 'electron'
 
 let win: BrowserWindow
-// app.allowRendererProcessReuse = true
 
 function createWindow() {
   const mainScreen = screen.getPrimaryDisplay()
@@ -14,7 +13,7 @@ function createWindow() {
     height: dimensions.height - 1,
     transparent: true,
     frame: false,
-    titleBarStyle: "customButtonsOnHover",
+    titleBarStyle: 'customButtonsOnHover',
     alwaysOnTop: true,
     hasShadow: false,
     webPreferences: {
@@ -23,23 +22,21 @@ function createWindow() {
   })
 
   // Allows the window stay on top of all other windows
-  win.setAlwaysOnTop(true, "screen-saver")
+  win.setAlwaysOnTop(true, 'screen-saver')
   // Keep the window on all workspaces
   win.setVisibleOnAllWorkspaces(true)
 
   // and load the index.html of the app.
-  win.loadFile("src/renderer/index.html")
+  win.loadFile('src/renderer/index.html')
 }
 
 function createShortcuts() {
-  const { reopen = "Alt+Shift+w" } = require("../src/shortcuts.js")
-
-  globalShortcut.register(reopen, WindowVisibility.toggle)
+  globalShortcut.register('Alt+Shift+w', WindowVisibility.toggle)
 }
 
 // To enable transparency on Linux
-if (process.platform === "linux") {
-  app.commandLine.appendSwitch("enable-transparent-visuals")
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('enable-transparent-visuals')
   app.disableHardwareAcceleration()
 }
 
@@ -52,15 +49,15 @@ app
   .then(createShortcuts)
 
 // Quit when all windows are closed.
-app.on("window-all-closed", () => {
+app.on('window-all-closed', () => {
   // On macOS it is common for applications and their menu bar
   // to stay active until the user quits explicitly with Cmd + Q
-  if (process.platform !== "darwin") {
+  if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
-app.on("activate", recreateWindow)
+app.on('activate', recreateWindow)
 
 function recreateWindow() {
   // On macOS it's common to re-create a window in the app when the
@@ -77,7 +74,7 @@ function recreateWindow() {
  *
  *  in Win and Linux we can use win.minimize() or win.maximize() to toggle visibility.
  */
-const isMacOS = process.platform === "darwin"
+const isMacOS = process.platform === 'darwin'
 
 const WindowVisibility = {
   isVisible: true,
