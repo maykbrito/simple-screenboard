@@ -1,17 +1,16 @@
 import {
-  BrowserWindow,
-  type BrowserWindowConstructorOptions,
+  BaseWindow,
+  WebContentsView,
   app,
   globalShortcut,
   screen,
+  type BaseWindowConstructorOptions,
 } from 'electron'
 
 let displays: Electron.Display[] = []
-let wins: Electron.BrowserWindow[] = []
+let wins: Electron.BaseWindow[] = []
 
 function createWindow() {
-  wins = []
-
   displays.map(display => {
     const options = {
       x: display.bounds.x,
@@ -21,24 +20,36 @@ function createWindow() {
       transparent: true,
       frame: false,
       titleBarStyle: 'customButtonsOnHover',
-      alwaysOnTop: true,
       hasShadow: false,
+      maximizable: false,
+      resizable: false,
+      fullscreenable: false,
+      alwaysOnTop: true,
+      backgroundColor: '#00000001',
       webPreferences: {
         nodeIntegration: true,
       },
-    } as BrowserWindowConstructorOptions
+    } as BaseWindowConstructorOptions
 
-    wins.push(new BrowserWindow(options))
-  })
-
-  for (const win of wins) {
-    // Allows the window stay on top of all other windows
+    const win = new BaseWindow(options)
     win.setAlwaysOnTop(true, 'screen-saver')
-    // Keep the window on all workspaces
-    win.setVisibleOnAllWorkspaces(true)
-    // and load the index.html of the app.
-    win.loadFile('src/renderer/index.html')
-  }
+    win.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+    })
+
+    const view = new WebContentsView()
+    view.setBounds({ x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height, 
+    })
+    view.setBackgroundColor('#00000001')
+    // Allows the window stay on top of all other windows
+    win.contentView.addChildView(view)
+    view.webContents.loadFile('src/renderer/index.html')
+
+    wins.push(win)
+  })
 }
 
 let isVisible = true
@@ -69,7 +80,11 @@ app
   .whenReady()
   .then(() => {
     displays = screen.getAllDisplays()
-    setTimeout(createWindow, 200)
+    setTimeout(() => {
+      app.dock.hide(); 
+      createWindow()
+      app.dock.show();
+    }, 200)
   })
   .then(createShortcuts)
 
@@ -81,10 +96,3 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-
-const isMacOS = process.platform === 'darwin'
-
-// Allows app display on top of fullscreen apps
-if (isMacOS) {
-  app.dock.hide()
-}
